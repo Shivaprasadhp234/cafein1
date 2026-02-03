@@ -1,13 +1,14 @@
 import { createClient } from '@/src/lib/supabase-server';
 import Hero from '@/src/components/Hero';
 import MenuDisplay from '@/src/components/MenuDisplay';
+import { Section, MenuItem } from '@/src/types/database';
 
 export const revalidate = 0;
 
 export default async function Home() {
   const supabase = await createClient();
-  let sections: any[] = [];
-  let menuItems: any[] = [];
+  let sections: Section[] = [];
+  let menuItems: MenuItem[] = [];
 
   // Fetch sections - fallback to sorting by created_at or name since sort_order is missing
   try {
@@ -43,4 +44,4 @@ export default async function Home() {
       />
     </div>
   );
-} 
+}    
