@@ -2,6 +2,7 @@ export interface Section {
   id: string;
   name: string;
   sort_order?: number;
+  display_order: number;
   created_at?: string;
 }
 
@@ -12,6 +13,7 @@ export interface MenuItem {
   price: number;
   section_id: string;
   image_url: string;
+  display_order: number;
   created_at?: string;
   is_available?: boolean;
 }
