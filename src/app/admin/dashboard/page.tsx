@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   
   // Create Forms State
   const [newSectionName, setNewSectionName] = useState('');
+  const [newSectionImage, setNewSectionImage] = useState<File | null>(null);
   const [isAddingSection, setIsAddingSection] = useState(false);
   
   const [newItem, setNewItem] = useState({
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
   // Edit Forms State
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [editSectionName, setEditSectionName] = useState('');
+  const [editSectionImage, setEditSectionImage] = useState<File | null>(null);
 
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editItemData, setEditItemData] = useState({
@@ -100,19 +102,40 @@ export default function AdminDashboard() {
 
     try {
       setIsAddingSection(true);
+      setUploading(true);
+
+      let image_url = null;
+      if (newSectionImage) {
+        const fileExt = newSectionImage.name.split('.').pop();
+        const fileName = `section_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('menu-images')
+          .upload(fileName, newSectionImage);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('menu-images')
+          .getPublicUrl(fileName);
+        
+        image_url = publicUrl;
+      }
+
       const { error } = await supabase
         .from('sections')
-        .insert([{ name: newSectionName, display_order: nextOrder }]);
+        .insert([{ name: newSectionName, display_order: nextOrder, image_url }]);
 
       if (error) throw error;
       
       setNewSectionName('');
+      setNewSectionImage(null);
       fetchData();
     } catch (error) {
       console.error('Error adding section:', error);
       alert('Failed to add section');
     } finally {
       setIsAddingSection(false);
+      setUploading(false);
     }
   };
 
@@ -121,17 +144,39 @@ export default function AdminDashboard() {
     if (!editingSection || !editSectionName.trim()) return;
 
     try {
+      setUploading(true);
+      let image_url = editingSection.image_url;
+
+      if (editSectionImage) {
+        const fileExt = editSectionImage.name.split('.').pop();
+        const fileName = `section_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('menu-images')
+          .upload(fileName, editSectionImage);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('menu-images')
+          .getPublicUrl(fileName);
+        
+        image_url = publicUrl;
+      }
+
       const { error } = await supabase
         .from('sections')
-        .update({ name: editSectionName })
+        .update({ name: editSectionName, image_url })
         .eq('id', editingSection.id);
 
       if (error) throw error;
       setEditingSection(null);
+      setEditSectionImage(null);
       fetchData();
     } catch (error) {
       console.error('Error updating section:', error);
       alert('Failed to update section');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -344,6 +389,7 @@ export default function AdminDashboard() {
   const openEditSectionModal = (section: Section) => {
     setEditingSection(section);
     setEditSectionName(section.name);
+    setEditSectionImage(null);
   };
 
   const openEditItemModal = (item: MenuItem) => {
@@ -390,9 +436,37 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-cafe-slate mb-1">Background Image (Optional)</label>
+                <div className="relative h-12">
+                  <input 
+                    type="file" 
+                    id="edit-section-image-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => setEditSectionImage(e.target.files?.[0] || null)}
+                  />
+                  <label 
+                    htmlFor="edit-section-image-upload"
+                    className={`flex items-center justify-center gap-2 w-full h-full px-4 py-2 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${editSectionImage ? 'border-cafe-600 bg-cafe-50 text-cafe-600' : 'border-cafe-200 hover:border-cafe-400 text-cafe-charcoal/60'}`}
+                  >
+                    {editSectionImage ? (
+                      <>
+                        <ImageIcon size={18} />
+                        <span className="truncate">{editSectionImage.name}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={18} />
+                        <span>Upload New Image</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setEditingSection(null)}>Cancel</Button>
-                <Button type="submit" className="flex items-center gap-2">
+                <Button type="submit" className="flex items-center gap-2" isLoading={uploading}>
                   <Save size={16} /> Save Changes
                 </Button>
               </div>
@@ -497,7 +571,7 @@ export default function AdminDashboard() {
 
 
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white border-r border-cafe-100 flex-shrink-0 flex flex-col min-h-screen sticky top-0">
+      <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-cafe-100 flex-shrink-0 flex flex-col md:min-h-screen sticky top-0 z-10">
         <div className="p-6 border-b border-cafe-100 flex items-center gap-3 shrink-0">
           <div className="p-2 bg-cafe-100 rounded-full text-cafe-600">
             <Coffee size={24} />
@@ -547,16 +621,43 @@ export default function AdminDashboard() {
                 Manage Sections
               </h2>
               
-              <form onSubmit={handleAddSection} className="flex gap-2 mb-6">
-                <Input 
-                  placeholder="New Section Name" 
-                  value={newSectionName}
-                  onChange={e => setNewSectionName(e.target.value)}
-                  className="h-10"
-                />
-                <Button type="submit" size="sm" disabled={isAddingSection} className="shrink-0">
-                  <Plus size={18} /> Add
-                </Button>
+              <form onSubmit={handleAddSection} className="flex flex-col gap-3 mb-6">
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="New Section Name" 
+                    value={newSectionName}
+                    onChange={e => setNewSectionName(e.target.value)}
+                    className="h-10 flex-1"
+                  />
+                  <Button type="submit" size="sm" isLoading={isAddingSection || uploading} className="shrink-0">
+                    <Plus size={18} /> Add
+                  </Button>
+                </div>
+                <div className="relative h-10">
+                  <input 
+                    type="file" 
+                    id="new-section-image-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => setNewSectionImage(e.target.files?.[0] || null)}
+                  />
+                  <label 
+                    htmlFor="new-section-image-upload"
+                    className={`flex items-center justify-center gap-2 w-full h-full px-4 rounded-xl border-2 border-dashed cursor-pointer transition-colors text-sm ${newSectionImage ? 'border-cafe-600 bg-cafe-50 text-cafe-600' : 'border-cafe-200 hover:border-cafe-400 text-cafe-charcoal/60'}`}
+                  >
+                    {newSectionImage ? (
+                      <>
+                        <ImageIcon size={16} />
+                        <span className="truncate">{newSectionImage.name}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={16} />
+                        <span>Upload Background Image (Optional)</span>
+                      </>
+                    )}
+                  </label>
+                </div>
               </form>
 
               <div className="space-y-3">

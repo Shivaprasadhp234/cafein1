@@ -3,6 +3,7 @@ export interface Section {
   name: string;
   sort_order?: number;
   display_order: number;
+  image_url?: string | null;
   created_at?: string;
 }
 

@@ -122,7 +122,7 @@ export default function MenuDisplay({ sections, items }: MenuDisplayProps) {
           const sectionItems = items.filter(item => item.section_id === section.id);
           if (sectionItems.length === 0) return null;
           
-          const bannerImage = CATEGORY_IMAGES[section.name] || DEFAULT_BANNER;
+          const bannerImage = section.image_url || CATEGORY_IMAGES[section.name] || DEFAULT_BANNER;
 
           return (
             <motion.section
